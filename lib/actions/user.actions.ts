@@ -52,6 +52,7 @@ export const signIn = async ({ email, password }: signInProps) => {
   }
 }
 
+
 export const signUp = async ({ password, ...userData }: SignUpParams) => {
   const { email, firstName, lastName } = userData;
   
@@ -60,6 +61,7 @@ export const signUp = async ({ password, ...userData }: SignUpParams) => {
   try {
     const { account, database } = await createAdminClient();
 
+    // Step 1: Create user account
     newUserAccount = await account.create(
       ID.unique(), 
       email, 
@@ -67,41 +69,61 @@ export const signUp = async ({ password, ...userData }: SignUpParams) => {
       `${firstName} ${lastName}`
     );
 
-    if(!newUserAccount) throw new Error('Error creating user')
+    if(!newUserAccount) throw new Error('Error creating user account');
 
-    const dwollaCustomerUrl = await createDwollaCustomer({
-      ...userData,
-      type: 'personal'
-    })
-
-    if(!dwollaCustomerUrl) throw new Error('Error creating Dwolla customer')
-
-    const dwollaCustomerId = extractCustomerIdFromUrl(dwollaCustomerUrl);
-
-    const newUser = await database.createDocument(
-      DATABASE_ID!,
-      USER_COLLECTION_ID!,
-      ID.unique(),
-      {
+    try {
+      // Step 2: Create Dwolla customer
+      const dwollaCustomerUrl = await createDwollaCustomer({
         ...userData,
-        userId: newUserAccount.$id,
-        dwollaCustomerId,
-        dwollaCustomerUrl
+        type: 'personal'
+      });
+
+      if(!dwollaCustomerUrl) throw new Error('Error creating Dwolla customer');
+
+      const dwollaCustomerId = extractCustomerIdFromUrl(dwollaCustomerUrl);
+
+      // Step 3: Create user document in database
+      const newUser = await database.createDocument(
+        DATABASE_ID!,
+        USER_COLLECTION_ID!,
+        ID.unique(),
+        {
+          ...userData,
+          userId: newUserAccount.$id,
+          dwollaCustomerId,
+          dwollaCustomerUrl
+        }
+      );
+
+      // Step 4: Create session
+      const session = await account.createEmailPasswordSession(email, password);
+
+      cookies().set("appwrite-session", session.secret, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "strict",
+        secure: true,
+      });
+
+      return parseStringify(newUser);
+
+    } catch (error) {
+      // If Dwolla or database creation fails, clean up the auth account
+      console.error('Error in signup process:', error);
+      
+      // Clean up: Delete the created auth account
+      try {
+        await account.deleteIdentity(newUserAccount.$id);
+      } catch (cleanupError) {
+        console.error('Error cleaning up auth account:', cleanupError);
       }
-    )
+      
+      throw error;
+    }
 
-    const session = await account.createEmailPasswordSession(email, password);
-
-    cookies().set("appwrite-session", session.secret, {
-      path: "/",
-      httpOnly: true,
-      sameSite: "strict",
-      secure: true,
-    });
-
-    return parseStringify(newUser);
   } catch (error) {
-    console.error('Error', error);
+    console.error('Error in signUp:', error);
+    throw error; // Re-throw to be handled by the calling function
   }
 }
 
@@ -138,7 +160,7 @@ export const createLinkToken = async (user: User) => {
         client_user_id: user.$id
       },
       client_name: `${user.firstName} ${user.lastName}`,
-      products: ['auth'] as Products[],
+      products: ['auth', 'transactions'] as Products[],
       language: 'en',
       country_codes: ['US'] as CountryCode[],
     }

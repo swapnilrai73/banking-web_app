@@ -41,58 +41,81 @@ const AuthForm = ({ type }: { type: string }) => {
       },
     })
    
-    // 2. Define a submit handler.
-    const onSubmit = async (data: z.infer<typeof formSchema>) => {
-      setIsLoading(true);
+    
+    
+    // Updated onSubmit function for AuthForm.tsx
+const onSubmit = async (data: z.infer<typeof formSchema>) => {
+  setIsLoading(true);
+
+  try {
+    if(type === 'sign-up') {
+      const userData = {
+        firstName: data.firstName!,
+        lastName: data.lastName!,
+        address1: data.address1!,
+        city: data.city!,
+        state: data.state!,
+        postalCode: data.postalCode!,
+        dateOfBirth: data.dateOfBirth!,
+        ssn: data.ssn!,
+        email: data.email,
+        password: data.password
+      }
 
       try {
-        // Sign up with Appwrite & create plaid token
+        const newUser = await signUp(userData);
         
-        if(type === 'sign-up') {
-          const userData = {
-            firstName: data.firstName!,
-            lastName: data.lastName!,
-            address1: data.address1!,
-            city: data.city!,
-            state: data.state!,
-            postalCode: data.postalCode!,
-            dateOfBirth: data.dateOfBirth!,
-            ssn: data.ssn!,
-            email: data.email,
-            password: data.password
-          }
-
-          const newUser = await signUp(userData);
-
+        if (newUser) {
           setUser(newUser);
+        } else {
+          throw new Error('Failed to create user');
         }
-
-        if(type === 'sign-in') {
-          const response = await signIn({
-            email: data.email,
-            password: data.password,
-          })
-
-          if(response) router.push('/')
-        }
-      } catch (error) {
-        console.log(error);
-      } finally {
-        setIsLoading(false);
+      } catch (signUpError) {
+        console.error('Sign up failed:', signUpError);
+        // Show error message to user
+        alert('Sign up failed. Please try again.');
+        return;
       }
     }
+
+    if(type === 'sign-in') {
+      try {
+        const response = await signIn({
+          email: data.email,
+          password: data.password,
+        });
+
+        if(response) {
+          router.push('/');
+        } else {
+          throw new Error('Sign in failed');
+        }
+      } catch (signInError) {
+        console.error('Sign in failed:', signInError);
+        // Show error message to user
+        alert('Sign in failed. Please check your credentials.');
+        return;
+      }
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    alert('An error occurred. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+}
 
   return (
     <section className="auth-form">
       <header className='flex flex-col gap-5 md:gap-8'>
           <Link href="/" className="cursor-pointer flex items-center gap-1">
             <Image 
-              src="/icons/logo.svg"
-              width={34}
-              height={34}
-              alt="Horizon logo"
+              src="/icons/logo-light.png"
+              width={140}
+              height={90}
+              alt="Fundilla"
             />
-            <h1 className="text-26 font-ibm-plex-serif font-bold text-black-1">Horizon</h1>
+            {/* <h1 className="text-26 font-ibm-plex-serif font-bold text-black-1">Fundillar</h1> */}
           </Link>
 
           <div className="flex flex-col gap-1 md:gap-3">
@@ -171,6 +194,6 @@ const AuthForm = ({ type }: { type: string }) => {
       )}
     </section>
   )
-}
+} 
 
 export default AuthForm
