@@ -2,61 +2,128 @@
 
 ## 🚨 Security Incident Report
 
-### Incident: Exposed Plaid Access Tokens (Resolved)
+### Incident: Multiple API Credentials Exposed in Repository (Resolved)
 
 **Date:** 2025-11-14
-**Severity:** HIGH
-**Status:** MITIGATED
+**Severity:** CRITICAL
+**Status:** MITIGATED - IMMEDIATE ACTION REQUIRED
 
 ### What Happened
 
-Three Plaid sandbox access tokens were hardcoded in `constants/index.ts` and committed to the git repository. The tokens followed the format `access-sandbox-[UUID]` and have been removed from the codebase.
+**CRITICAL BREACH:** A `.env` file containing production API credentials was committed to the repository and is in the public git history. Additionally, three Plaid access tokens were hardcoded in source code.
 
-These tokens originated from the upstream repository (adrianhajdin/banking) and were carried over during the fork.
+**Exposed Credentials:**
 
-**Note:** Actual token values have been redacted from this security report to prevent re-exposure.
+1. **Appwrite (CRITICAL - Full Admin Access)**
+   - Project ID: `[REDACTED]`
+   - Database ID: `[REDACTED]`
+   - API Key: `[REDACTED - 256 character admin key]`
+   - Collection IDs for users, banks, transactions
+
+2. **Plaid API (HIGH)**
+   - Client ID: `[REDACTED]`
+   - Secret: `[REDACTED]`
+   - Environment: Sandbox
+
+3. **Dwolla API (HIGH)**
+   - Key: `[REDACTED]`
+   - Secret: `[REDACTED]`
+   - Environment: Sandbox
+
+4. **Hardcoded Plaid Access Tokens (in `constants/index.ts`)**
+   - Three sandbox access tokens in format: `access-sandbox-[UUID]`
+   - All tokens must be revoked immediately
+
+All credentials originated from the upstream repository (adrianhajdin/banking) and were carried over during the fork.
 
 ### Remediation Steps Taken
 
 ✅ **Immediate Actions:**
-1. Removed all hardcoded tokens from source code
-2. Migrated to environment variable configuration
-3. Updated `.gitignore` to properly exclude `.env` files
-4. Updated `.env.example` with proper token placeholders
-5. Committed security fixes to repository
+1. Removed `.env` file from git tracking (committed .env file removed)
+2. Removed all hardcoded tokens from source code
+3. Migrated to environment variable configuration
+4. Updated `.gitignore` to properly exclude `.env` files
+5. Updated `.env.example` with proper token placeholders
+6. Created SECURITY.md documenting incident and remediation
+7. Committed security fixes to feature branch
 
 ### Required User Actions
 
-**CRITICAL - You must complete these steps immediately:**
+**🔴 CRITICAL - You MUST complete these steps within 24 hours:**
 
-1. **Rotate All Plaid Tokens**
+#### 1. **Rotate ALL Appwrite Credentials (HIGHEST PRIORITY)**
+   - ⚠️ The exposed API key has FULL ADMIN ACCESS to your database
+   - Go to: https://cloud.appwrite.io/console (check your Appwrite dashboard)
+   - Navigate to Settings > API Keys
+   - **DELETE** the exposed API key immediately
+   - Generate a NEW API key with minimal required permissions
+   - Update your local `.env` file with the new key
+   - **VERIFY:** Check database audit logs for unauthorized access
+
+#### 2. **Rotate All Plaid Credentials**
    - Go to: https://dashboard.plaid.com/team/keys
-   - Revoke the three exposed sandbox tokens listed above
-   - Generate new sandbox access tokens
-   - Update your local `.env` file with new tokens
+   - Delete/regenerate Plaid Client ID and Secret
+   - Revoke the three exposed sandbox access tokens
+   - Generate new sandbox credentials
+   - Update your local `.env` file
 
-2. **Verify No Production Tokens Were Exposed**
-   - Check if any production Plaid credentials were ever used
-   - If yes, rotate ALL production credentials immediately
+#### 3. **Rotate All Dwolla Credentials**
+   - Go to: https://dashboard.dwolla.com/applications
+   - Regenerate Dwolla Key and Secret
+   - Update your local `.env` file
 
-3. **Review Git History**
-   - These tokens are in your git history
-   - Consider using `git filter-branch` or BFG Repo-Cleaner to purge them
-   - Force push if necessary (coordinate with team first)
+#### 4. **Audit Database Access (CRITICAL)**
+   - Check Appwrite audit logs for suspicious activity
+   - Review all user accounts in the database
+   - Check for unauthorized transactions or data access
+   - Look for timestamps outside your normal activity hours
 
-4. **Set Up Local Environment**
+#### 5. **Review Git History & Consider Rewriting It**
+   - These credentials are PERMANENTLY in your public git history
+   - Anyone who cloned your repository has access to them
+   - **Recommended:** Use BFG Repo-Cleaner to purge secrets from history
+
+   ```bash
+   # Install BFG Repo-Cleaner
+   brew install bfg  # macOS
+   # or download from: https://rtyley.github.io/bfg-repo-cleaner/
+
+   # Clone a fresh copy
+   git clone --mirror git@github.com:gadgetboy27/banking_app_plaid.git
+
+   # Remove .env from all history
+   bfg --delete-files .env banking_app_plaid.git
+
+   # Rewrite history
+   cd banking_app_plaid.git
+   git reflog expire --expire=now --all
+   git gc --prune=now --aggressive
+
+   # Force push (WARNING: This rewrites public history)
+   git push --force
+   ```
+
+#### 6. **Set Up New Local Environment**
    ```bash
    # Copy the example file
    cp .env.example .env
 
-   # Add your NEW tokens to .env (NEVER commit this file!)
+   # Add your NEW credentials to .env (NEVER commit this file!)
+   # The .env file is now properly gitignored
    nano .env
    ```
 
-5. **Enable Secret Scanning**
-   - Go to: Settings > Security > Secret scanning
-   - Enable for this repository
-   - Review any additional findings
+#### 7. **Enable GitHub Security Features**
+   - Go to: Repository Settings > Security
+   - Enable: Secret scanning
+   - Enable: Push protection
+   - Enable: Dependabot alerts
+   - Review and resolve all alerts
+
+#### 8. **Notify Stakeholders**
+   - If this app has users, assess if their data was exposed
+   - Check if GDPR notification requirements apply
+   - Document the incident for compliance purposes
 
 ### Prevention
 
